@@ -1,0 +1,10 @@
+credentials:
+  usernames:
+    manu:
+      name: Manu
+      password: '$2b$12$nxUnHEUHD0fEJdHhIeXOT.6djiuxUBUThl32xqGmgT7JhmdC.lwKm'
+
+cookie:
+  expiry_days: 30
+  key: neural_harmony_key
+  name: neural_harmony_cookie
