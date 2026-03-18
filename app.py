@@ -43,8 +43,9 @@ authenticator = stauth.Authenticate(
 )
 
 # -------------------- LOGIN --------------------
-name, authentication_status, username = authenticator.login("Login", "main")
+st.title("🔐 Login")
 
+name, authentication_status, username = authenticator.login()
 # -------------------- AUTH LOGIC --------------------
 if authentication_status:
 
