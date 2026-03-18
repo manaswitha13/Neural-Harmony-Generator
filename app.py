@@ -43,7 +43,7 @@ authenticator = stauth.Authenticate(
 )
 
 # ✅ FIXED LOGIN
-name, authentication_status, username = authenticator.login("Login")
+name, authentication_status, username = authenticator.login("Login", "main")
 
 # -------------------- AUTH LOGIC --------------------
 if authentication_status:
