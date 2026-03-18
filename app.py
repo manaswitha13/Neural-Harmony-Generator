@@ -42,18 +42,19 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days']
 )
 
+<<<<<<< HEAD
 # ✅ FIXED LOGIN
 name, authentication_status, username = authenticator.login("Login", "main")
 
-# -------------------- AUTH LOGIC --------------------
 if authentication_status:
-
     authenticator.logout("Logout", "sidebar")
-    st.sidebar.title("🎵 Neural Harmony")
-    st.sidebar.info("AI-powered music generation based on emotions")
-
     st.success(f"Welcome {name} 👋")
 
+elif authentication_status == False:
+    st.error("❌ Incorrect Username or Password")
+
+elif authentication_status == None:
+    st.warning("⚠️ Please enter your login credentials")
     # -------------------- MODEL LOADING --------------------
     @st.cache_resource
     def load_music_model():
