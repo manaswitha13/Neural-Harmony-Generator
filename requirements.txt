@@ -1,6 +1,6 @@
 streamlit
-torch==2.1.0
-transformers==4.36.2
+torch
+transformers
 scipy
 numpy
 streamlit-authenticator
