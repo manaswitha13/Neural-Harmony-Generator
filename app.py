@@ -1,22 +1,36 @@
 import streamlit as st
-import requests
-import streamlit_authenticator as stauth
-import yaml
-from yaml.loader import SafeLoader
+import numpy as np
+import scipy.io.wavfile as wavfile
+import tempfile
 
-# -------------------- PAGE CONFIG --------------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="Neural Harmony Generator",
     page_icon="🎵",
     layout="wide"
 )
 
-# -------------------- CUSTOM UI --------------------
+# ---------------- SESSION STATE ----------------
+if "users" not in st.session_state:
+    st.session_state.users = {}
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
+# ---------------- CUSTOM UI ----------------
 st.markdown("""
     <style>
     .main {
         background-color: #0e1117;
         color: white;
+    }
+    .title {
+        font-size: 40px;
+        font-weight: bold;
+        text-align: center;
     }
     .stButton>button {
         background-color: #ff4b4b;
@@ -24,45 +38,63 @@ st.markdown("""
         border-radius: 10px;
         height: 3em;
         width: 100%;
+        font-size: 16px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# -------------------- AUTHENTICATION --------------------
-with open('config.yaml') as file:
-    config = yaml.load(file, Loader=SafeLoader)
+# ---------------- AUTH SYSTEM ----------------
+if not st.session_state.logged_in:
 
-authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
-)
+    st.markdown("<div class='title'>🔐 Login / Signup</div>", unsafe_allow_html=True)
 
-# -------------------- LOGIN --------------------
-st.title("🔐 Login")
-authenticator.login()
+    tab1, tab2 = st.tabs(["Login", "Signup"])
 
-name = st.session_state.get("name")
-authentication_status = st.session_state.get("authentication_status")
+    # ---------- LOGIN ----------
+    with tab1:
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
 
-# -------------------- MAIN APP --------------------
-if authentication_status:
+        if st.button("Login"):
+            if username in st.session_state.users and st.session_state.users[username] == password:
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
 
-    authenticator.logout("Logout", "sidebar")
-    st.success(f"Welcome {name} 👋")
+    # ---------- SIGNUP ----------
+    with tab2:
+        new_user = st.text_input("Create Username")
+        new_pass = st.text_input("Create Password", type="password")
+
+        if st.button("Signup"):
+            if new_user in st.session_state.users:
+                st.warning("User already exists")
+            else:
+                st.session_state.users[new_user] = new_pass
+                st.success("Account created! Please login")
+
+# ---------------- MAIN APP ----------------
+else:
+
+    # Logout button
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
 
     st.title("🎵 Neural Harmony Generator")
-    st.subheader("Create AI-generated music from emotions")
+    st.subheader(f"Welcome {st.session_state.username} 👋")
 
-    # -------------------- EMOTIONS --------------------
+    # ---------------- EMOTION MAP ----------------
     emotion_music = {
-        "Happy": "upbeat cheerful piano and guitar music",
-        "Sad": "slow emotional violin and piano music",
-        "Calm": "relaxing meditation flute music",
-        "Angry": "fast intense drum and electric guitar music",
-        "Focused": "lofi study music with soft beats",
-        "Fearful": "dark suspense cinematic music"
+        "Happy": 440,
+        "Sad": 220,
+        "Calm": 330,
+        "Angry": 550,
+        "Focused": 400,
+        "Fearful": 180
     }
 
     emotion_icons = {
@@ -77,69 +109,40 @@ if authentication_status:
     col1, col2 = st.columns(2)
 
     with col1:
-        selected_emotion = st.selectbox(
-            "🎭 Select Emotion",
-            list(emotion_music.keys())
-        )
+        selected_emotion = st.selectbox("🎭 Select Emotion", list(emotion_music.keys()))
 
     with col2:
         st.markdown("### 🎧 Experience AI-generated music instantly")
 
     st.write(f"Selected Emotion: {emotion_icons[selected_emotion]} {selected_emotion}")
 
-    # -------------------- HUGGING FACE API --------------------
-    API_URL = "https://api-inference.huggingface.co/models/facebook/musicgen-small"
+    # ---------------- AUDIO FUNCTION ----------------
+    def generate_music(freq, duration=3, sample_rate=44100):
+        t = np.linspace(0, duration, int(sample_rate * duration))
+        audio = 0.5 * np.sin(2 * np.pi * freq * t)
+        return (audio * 32767).astype(np.int16)
 
-    # 🔑 PUT YOUR TOKEN HERE
-    HEADERS = {
-        "Authorization": "Bearer YOUR_HF_TOKEN"
-    }
-
-    # -------------------- GENERATION FUNCTION --------------------
-    def generate_music(prompt):
-        response = requests.post(
-            API_URL,
-            headers=HEADERS,
-            json={"inputs": prompt}
-        )
-
-        # ❌ API error
-        if response.status_code != 200:
-            st.error("❌ API Error: " + response.text)
-            return None
-
-        # ⏳ Model loading case
-        if "application/json" in response.headers.get("content-type"):
-            st.warning("⏳ Model is loading... Click again in a few seconds.")
-            return None
-
-        return response.content
-
-    # -------------------- GENERATE BUTTON --------------------
+    # ---------------- GENERATE BUTTON ----------------
     if st.button("🎼 Generate Music"):
 
         with st.spinner("Generating music... 🎶"):
 
-            audio_bytes = generate_music(emotion_music[selected_emotion])
+            progress = st.progress(0)
+            for i in range(100):
+                progress.progress(i + 1)
 
-            if audio_bytes:
-                with open("output.wav", "wb") as f:
-                    f.write(audio_bytes)
+            audio_data = generate_music(emotion_music[selected_emotion])
 
-                st.audio("output.wav")
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+            wavfile.write(temp_file.name, 44100, audio_data)
 
-                with open("output.wav", "rb") as f:
-                    st.download_button(
-                        "⬇ Download Music",
-                        f,
-                        file_name="neural_harmony.wav"
-                    )
+            st.audio(temp_file.name)
 
-                st.success(f"{selected_emotion} music generated successfully!")
+            with open(temp_file.name, "rb") as f:
+                st.download_button(
+                    "⬇ Download Music",
+                    f,
+                    file_name="neural_harmony.wav"
+                )
 
-# -------------------- AUTH ERRORS --------------------
-elif authentication_status == False:
-    st.error("❌ Incorrect Username or Password")
-
-elif authentication_status == None:
-    st.warning("⚠️ Please enter your login credentials")
+            st.success(f"{selected_emotion} music generated successfully!")
