@@ -6,15 +6,11 @@ import numpy as np
 import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
-
-# -------------------- PAGE CONFIG --------------------
 st.set_page_config(
     page_title="Neural Harmony Generator",
     page_icon="🎵",
     layout="wide"
 )
-
-# -------------------- CUSTOM UI --------------------
 st.markdown("""
     <style>
     .main {
@@ -30,34 +26,22 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-# -------------------- AUTHENTICATION --------------------
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
-
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
     config['cookie']['key'],
     config['cookie']['expiry_days']
 )
-
-# -------------------- LOGIN --------------------
 st.title("🔐 Login")
-
 authenticator.login()
-
 name = st.session_state.get("name")
 authentication_status = st.session_state.get("authentication_status")
 username = st.session_state.get("username")
-
-# -------------------- AUTH LOGIC --------------------
 if authentication_status:
-
     authenticator.logout("Logout", "sidebar")
     st.success(f"Welcome {name} 👋")
-
-    # -------------------- MODEL LOADING --------------------
     @st.cache_resource
     def load_music_model():
         model = MusicgenForConditionalGeneration.from_pretrained(
@@ -66,8 +50,6 @@ if authentication_status:
         )
         processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
         return model, processor
-
-    # -------------------- EMOTION MAP --------------------
     emotion_music = {
         "Happy": "upbeat cheerful piano and guitar music",
         "Sad": "slow emotional violin and piano music",
@@ -85,61 +67,42 @@ if authentication_status:
         "Focused": "🧠",
         "Fearful": "😨"
     }
-
-    # -------------------- UI --------------------
     st.title("🎵 Neural Harmony Generator")
     st.subheader("Create AI-generated music from emotions")
-
     col1, col2 = st.columns(2)
-
     with col1:
         selected_emotion = st.selectbox(
             "🎭 Select Emotion",
             list(emotion_music.keys())
         )
-
     with col2:
         st.markdown("### 🎧 Experience AI-generated music instantly")
-
     st.write(f"Selected Emotion: {emotion_icons[selected_emotion]} {selected_emotion}")
-
-    # -------------------- GENERATE --------------------
     if st.button("🎼 Generate Music"):
-
         model, processor = load_music_model()
-
         with st.spinner(f"AI is composing {selected_emotion} music..."):
-
             progress = st.progress(0)
             for i in range(100):
                 progress.progress(i + 1)
-
             inputs = processor(
                 text=[emotion_music[selected_emotion]],
                 padding=True,
                 return_tensors="pt",
             )
-
             with torch.no_grad():
                 audio_values = model.generate(**inputs, max_new_tokens=256)
-
             sampling_rate = model.config.audio_encoder.sampling_rate
             audio_data = audio_values[0, 0].cpu().numpy()
-
             output_filename = "neural_harmony.wav"
             scipy.io.wavfile.write(output_filename, sampling_rate, audio_data)
-
             st.audio(output_filename)
-
             with open(output_filename, "rb") as file:
                 st.download_button(
                     "⬇ Download Music",
                     file,
                     file_name="neural_harmony.wav"
                 )
-
             st.success(f"{selected_emotion} music generated successfully!")
-
 elif authentication_status == False:
     st.error("❌ Incorrect Username or Password")
 
