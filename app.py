@@ -1,13 +1,10 @@
 import streamlit as st
-import torch
-from transformers import MusicgenForConditionalGeneration, AutoProcessor
-import scipy.io.wavfile
-import numpy as np
+import requests
 import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 
-# -------------------- PAGE CONFIG --------------------
+# -------------------- CONFIG --------------------
 st.set_page_config(
     page_title="Neural Harmony Generator",
     page_icon="🎵",
@@ -31,7 +28,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# -------------------- AUTHENTICATION --------------------
+# -------------------- AUTH --------------------
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -44,30 +41,21 @@ authenticator = stauth.Authenticate(
 
 # -------------------- LOGIN --------------------
 st.title("🔐 Login")
-
 authenticator.login()
 
 name = st.session_state.get("name")
 authentication_status = st.session_state.get("authentication_status")
-username = st.session_state.get("username")
 
-# -------------------- MAIN APP --------------------
+# -------------------- MAIN --------------------
 if authentication_status:
 
     authenticator.logout("Logout", "sidebar")
     st.success(f"Welcome {name} 👋")
 
-    # -------------------- MODEL LOADING --------------------
-    @st.cache_resource
-    def load_music_model():
-        model = MusicgenForConditionalGeneration.from_pretrained(
-            "facebook/musicgen-small"
-        )
-        model = model.to("cpu")  # ✅ IMPORTANT FIX
-        processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
-        return model, processor
+    st.title("🎵 Neural Harmony Generator")
+    st.subheader("Create AI-generated music from emotions")
 
-    # -------------------- EMOTION MAP --------------------
+    # -------------------- EMOTIONS --------------------
     emotion_music = {
         "Happy": "upbeat cheerful piano and guitar music",
         "Sad": "slow emotional violin and piano music",
@@ -86,10 +74,6 @@ if authentication_status:
         "Fearful": "😨"
     }
 
-    # -------------------- UI --------------------
-    st.title("🎵 Neural Harmony Generator")
-    st.subheader("Create AI-generated music from emotions")
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -103,38 +87,34 @@ if authentication_status:
 
     st.write(f"Selected Emotion: {emotion_icons[selected_emotion]} {selected_emotion}")
 
+    # -------------------- HUGGING FACE API --------------------
+    API_URL = "https://api-inference.huggingface.co/models/facebook/musicgen-small"
+    HEADERS = {"Authorization": "Bearer YOUR_HF_TOKEN"}  # 🔑 replace this
+
+    def generate_music(prompt):
+        response = requests.post(
+            API_URL,
+            headers=HEADERS,
+            json={"inputs": prompt}
+        )
+        return response.content
+
     # -------------------- GENERATE --------------------
     if st.button("🎼 Generate Music"):
 
-        model, processor = load_music_model()
+        with st.spinner("Generating music... 🎶"):
 
-        with st.spinner(f"AI is composing {selected_emotion} music..."):
+            audio_bytes = generate_music(emotion_music[selected_emotion])
 
-            progress = st.progress(0)
-            for i in range(100):
-                progress.progress(i + 1)
+            with open("output.wav", "wb") as f:
+                f.write(audio_bytes)
 
-            inputs = processor(
-                text=[emotion_music[selected_emotion]],
-                padding=True,
-                return_tensors="pt",
-            )
+            st.audio("output.wav")
 
-            with torch.no_grad():
-                audio_values = model.generate(**inputs, max_new_tokens=128)  # ✅ reduced
-
-            sampling_rate = model.config.audio_encoder.sampling_rate
-            audio_data = audio_values[0, 0].cpu().numpy()
-
-            output_filename = "neural_harmony.wav"
-            scipy.io.wavfile.write(output_filename, sampling_rate, audio_data)
-
-            st.audio(output_filename)
-
-            with open(output_filename, "rb") as file:
+            with open("output.wav", "rb") as f:
                 st.download_button(
                     "⬇ Download Music",
-                    file,
+                    f,
                     file_name="neural_harmony.wav"
                 )
 
