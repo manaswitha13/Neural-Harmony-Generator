@@ -4,7 +4,7 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 
-# -------------------- CONFIG --------------------
+# -------------------- PAGE CONFIG --------------------
 st.set_page_config(
     page_title="Neural Harmony Generator",
     page_icon="🎵",
@@ -28,7 +28,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# -------------------- AUTH --------------------
+# -------------------- AUTHENTICATION --------------------
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -46,7 +46,7 @@ authenticator.login()
 name = st.session_state.get("name")
 authentication_status = st.session_state.get("authentication_status")
 
-# -------------------- MAIN --------------------
+# -------------------- MAIN APP --------------------
 if authentication_status:
 
     authenticator.logout("Logout", "sidebar")
@@ -89,37 +89,55 @@ if authentication_status:
 
     # -------------------- HUGGING FACE API --------------------
     API_URL = "https://api-inference.huggingface.co/models/facebook/musicgen-small"
-    HEADERS = {"Authorization": "Bearer YOUR_HF_TOKEN"}  # 🔑 replace this
 
+    # 🔑 PUT YOUR TOKEN HERE
+    HEADERS = {
+        "Authorization": "Bearer YOUR_HF_TOKEN"
+    }
+
+    # -------------------- GENERATION FUNCTION --------------------
     def generate_music(prompt):
         response = requests.post(
             API_URL,
             headers=HEADERS,
             json={"inputs": prompt}
         )
+
+        # ❌ API error
+        if response.status_code != 200:
+            st.error("❌ API Error: " + response.text)
+            return None
+
+        # ⏳ Model loading case
+        if "application/json" in response.headers.get("content-type"):
+            st.warning("⏳ Model is loading... Click again in a few seconds.")
+            return None
+
         return response.content
 
-    # -------------------- GENERATE --------------------
+    # -------------------- GENERATE BUTTON --------------------
     if st.button("🎼 Generate Music"):
 
         with st.spinner("Generating music... 🎶"):
 
             audio_bytes = generate_music(emotion_music[selected_emotion])
 
-            with open("output.wav", "wb") as f:
-                f.write(audio_bytes)
+            if audio_bytes:
+                with open("output.wav", "wb") as f:
+                    f.write(audio_bytes)
 
-            st.audio("output.wav")
+                st.audio("output.wav")
 
-            with open("output.wav", "rb") as f:
-                st.download_button(
-                    "⬇ Download Music",
-                    f,
-                    file_name="neural_harmony.wav"
-                )
+                with open("output.wav", "rb") as f:
+                    st.download_button(
+                        "⬇ Download Music",
+                        f,
+                        file_name="neural_harmony.wav"
+                    )
 
-            st.success(f"{selected_emotion} music generated successfully!")
+                st.success(f"{selected_emotion} music generated successfully!")
 
+# -------------------- AUTH ERRORS --------------------
 elif authentication_status == False:
     st.error("❌ Incorrect Username or Password")
 
